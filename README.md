@@ -1,8 +1,9 @@
 <p align="center"><img width="60%" src="_static/cookiecutter_logo.png" /></p>
+<p align="center"><img width="30%" src="_static/machine_learning_logo.png" /></p>
 
 --------------------------------------------------------------------------------
 
-## Soft-cookiecutter template
+## ml-cookie
 
 Template for Machine Learning Competitions.
 
