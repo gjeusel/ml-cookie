@@ -173,9 +173,9 @@ class CleanedDataCookie:
 
     # Methods to generate cleaned datas:
     def generate_single_set(self, dataset, drop_cols=COLS_DROPPED_RAW):
-        """Generate one cleaned set amon ['train', 'test']"""
+        """Generate one cleaned set among ['train', 'test']"""
         with Timer("Reading {} set".format(dataset)):
-            df = pd.read_parquet(DATA_DIR / "{}.parquet.gzip".format(dataset))
+            df = pd.read_parquet(RAW_DATA_DIR / "{}.parquet.gzip".format(dataset))
 
         if self.debug:
             df = df.sample(n=30000, random_state=SEED)
@@ -203,21 +203,21 @@ class CleanedDataCookie:
 
 class DataHandleCookie:
 
-    target = 'target'  # column name of the target
+    target_col = 'target'  # column name of the target
 
     @property
     def train_parquetpath(self):
         if self.debug:
-            return CLEANED_DATA_DIR / "debug_train.parquet.gzip"
+            return CLEANED_DATA_DIR / "debug_train_cleaned.parquet.gzip"
         else:
-            return CLEANED_DATA_DIR / "train.parquet.gzip"
+            return CLEANED_DATA_DIR / "train_cleaned.parquet.gzip"
 
     @property
     def test_parquetpath(self):
         if self.debug:
-            return CLEANED_DATA_DIR / "debug_test.parquet.gzip"
+            return CLEANED_DATA_DIR / "debug_test_cleaned.parquet.gzip"
         else:
-            return CLEANED_DATA_DIR / "test.parquet.gzip"
+            return CLEANED_DATA_DIR / "test_cleaned.parquet.gzip"
 
     def __init__(self, debug=True, drop_lowimp_features=False):
         self.debug = debug
@@ -225,20 +225,24 @@ class DataHandleCookie:
 
     # Private:
     def _get_cleaned_single_set(self, dataset="train"):
-        with Timer("Reading train set"):
-            df = pd.read_parquet(self.train_parquetpath)
+        with Timer("Reading {} set".format(dataset)):
+            if dataset == 'train':
+                path = self.train_parquetpath
+            else:
+                path = self.test_parquetpath
+            df = pd.read_parquet(path)
 
         # Consistency, always sort columns as follow:
         # | Categorical | Numerical | Target ? |
 
         cat_cols = set(df.columns).intersection(set(CAT_COLS))
-        target_col = set([self.target])
+        target_col = set([self.target_col])
         num_cols = set(df.columns) - cat_cols - target_col
 
         sorted_cols = sorted(list(cat_cols)) + sorted(list(num_cols))
-        sorted_cols += list(target_col) if self.target in df.columns else []
+        sorted_cols += list(target_col) if self.target_col in df.columns else []
 
-        return df[:, sorted_cols]
+        return df.loc[:, sorted_cols]
 
     def _process_cleaned_single_set(self, df, as_xgb_dmatrix=False,
                                     as_lgb_dataset=False, as_cgb_pool=False):
@@ -290,12 +294,13 @@ class DataHandleCookie:
         df = self._get_cleaned_single_set(dataset="train")
 
         dftrain = df.sample(frac=1 - split_perc, random_state=SEED)
-        dftest = df.index.difference(dftrain.index)
+        idxtest = df.index.difference(dftrain.index)
+        dftest = df.loc[idxtest, :]
         del df
 
         dtrain = self._process_cleaned_single_set(
             dftrain, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
         dtest = self._process_cleaned_single_set(
-            dtest, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
+            dftest, as_xgb_dmatrix, as_lgb_dataset, as_cgb_pool)
 
         return dtrain, dtest
